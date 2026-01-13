@@ -9,37 +9,55 @@ def read_file(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
         return f.read()
 
-def simulate_llm_response(agent: AgentPersona, cr_content: str) -> str:
+def load_knowledge_base(kb_dir: str) -> str:
+    """Reads all markdown files from the knowledge base directory."""
+    if not os.path.exists(kb_dir):
+        return ""
+    
+    print(f"Loading Knowledge Base from: {kb_dir}")
+    kb_content = []
+    for filename in os.listdir(kb_dir):
+        if filename.endswith(".md"):
+            path = os.path.join(kb_dir, filename)
+            content = read_file(path)
+            kb_content.append(f"--- DOCUMENT: {filename} ---\n{content}\n")
+    
+    return "\n".join(kb_content)
+
+def simulate_llm_response(agent: AgentPersona, cr_content: str, kb_context: str) -> str:
     """
-    Mocks an LLM response. In a real system, this would call OpenAI/Gemini API.
+    Mocks an LLM response with Knowledge Base awareness.
     """
     print(f"\n--- [Simulating AI Evaluation for: {agent.role_name}] ---")
-    # In a real scenario, we would send 'agent.system_instruction' + 'cr_content' to the model.
     
-    # Mock logic for demonstration
+    # In a real scenario, the prompt would be:
+    # System: agent.system_instruction + "\n\nCONTEXT:\n" + kb_context
+    # User: cr_content
+    
+    # Mock logic checking for KB violations
+    if "Architect" in agent.role_name:
+        if "Java" in cr_content and "NO JAVA" in kb_context:
+            return f"""
+**Feasibility**: No
+**Architectural Impact**: Critical
+**Technical Constraints**:
+* **VIOLATION**: The Knowledge Base explicitly states "NO JAVA". We must use Python or C#.
+"""
+        return f"""
+**Feasibility**: Yes.
+**Architectural Impact**: Low.
+**Note**: Verified against Architecture Rules (Python/FastAPI compliant).
+"""
+        
     if "Product Owner" in agent.role_name:
         return f"""
 **Decision**: Approve
 **Reasoning**:
-* Aligns with the roadmap for Q3.
-* ROI is positive based on projected efficiency gains.
+* Aligns with the roadmap.
 **Priority**: High
 """
-    elif "Architect" in agent.role_name:
-        return f"""
-**Feasibility**: Yes, but with cautions.
-**Architectural Impact**: Medium
-**Technical Constraints**:
-* Ensure offline sync logic handles conflict resolution (Last-Write-Wins is not enough).
-"""
-    elif "Security" in agent.role_name:
-        return f"""
-**Compliance Check**: Review Needed
-**Security Risks**:
-* If this involves customer data, we need to verify encryption at rest.
-"""
-    else:
-        return f"**Analysis**: Looks reasonable. Proceed with standard {agent.role_name} checks."
+
+    return f"**Analysis**: Looks reasonable. Context checked."
 
 def evaluate_cr(cr_filepath: str):
     print(f"Loading Change Request from: {cr_filepath}...")
@@ -49,6 +67,12 @@ def evaluate_cr(cr_filepath: str):
         print(f"Error: {e}")
         return
 
+    # Load RAG Context
+    kb_path = os.path.join(os.path.dirname(__file__), "knowledge_base")
+    kb_context = load_knowledge_base(kb_path)
+    if kb_context:
+        print(f"Loaded {len(kb_context)} characters of context context.")
+
     print("\nStarting Multi-Agent Evaluation...\n" + "="*40)
 
     results = {}
@@ -57,8 +81,8 @@ def evaluate_cr(cr_filepath: str):
         print(f"\n> Agent: {agent.role_name}")
         print(f"> Focus: {', '.join(agent.focus_areas)}")
         
-        # Here we invoke the "AI"
-        response = simulate_llm_response(agent, cr_content)
+        # Here we invoke the "AI" with Context
+        response = simulate_llm_response(agent, cr_content, kb_context)
         
         results[agent.role_name] = response
         print(f"\n{response}\n" + "-"*40)
@@ -66,7 +90,9 @@ def evaluate_cr(cr_filepath: str):
     print("\nEvaluation Complete.")
     
     # Save Report
-    output_path = cr_filepath.replace(".md", "_REPORT.md")
+    base, _ = os.path.splitext(cr_filepath)
+    output_path = f"{base}_REPORT.md"
+    
     with open(output_path, "w", encoding='utf-8') as f:
         f.write(f"# Evaluation Report for {os.path.basename(cr_filepath)}\n\n")
         f.write(f"**Date**: {os.getcwd()}\n\n")
