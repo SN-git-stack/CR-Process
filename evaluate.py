@@ -77,6 +77,33 @@ Use the following context to check for violations or rules.
     
     return call_local_llm(messages)
 
+def generate_executive_summary(cr_content: str, agent_results: dict) -> str:
+    """
+    Synthesizes all agent outputs into a high-level summary.
+    """
+    system_prompt = """You are the Director of Engineering & QA.
+Review the following technical evaluations from your team (Product, Architect, QA, Security, DevOps).
+Synthesize them into a concise Executive Summary for a "Go/No-Go" meeting.
+
+Output format:
+1. **Verdicts**: (Safe to Ship / Needs Review / Blocked)
+2. **Top 3 Risks**: Summarize the most critical issues raised by the team.
+3. **Resource Estimation**: Aggregate the effort/complexity.
+4. **Director's Note**: Your final recommendation.
+"""
+
+    # Compile the team's feedback
+    team_feedback = ""
+    for role, feedback in agent_results.items():
+        team_feedback += f"\n--- {role} ---\n{feedback}\n"
+
+    messages = [
+        {"role": "system", "content": system_prompt.strip()},
+        {"role": "user", "content": f"Original Request:\n{cr_content}\n\nTeam Feedback:\n{team_feedback}"}
+    ]
+    
+    return call_local_llm(messages)
+
 def evaluate_cr(cr_filepath: str):
     print(f"Loading Change Request from: {cr_filepath}...")
     try:
@@ -107,6 +134,11 @@ def evaluate_cr(cr_filepath: str):
 
     print("\nEvaluation Complete.")
     
+    # Generate Executive Summary
+    print("\nGenerating Executive Summary (Director Level)...")
+    executive_summary = generate_executive_summary(cr_content, results)
+    print(executive_summary)
+
     # Save Report
     base, _ = os.path.splitext(cr_filepath)
     output_path = f"{base}_REPORT.md"
@@ -114,6 +146,10 @@ def evaluate_cr(cr_filepath: str):
     with open(output_path, "w", encoding='utf-8') as f:
         f.write(f"# Evaluation Report for {os.path.basename(cr_filepath)}\n\n")
         f.write(f"**Date**: {os.getcwd()}\n\n")
+        
+        f.write("## 🏛️ Executive Summary (Director View)\n")
+        f.write(executive_summary + "\n\n")
+        f.write("---\n\n")
         
         for role, analysis in results.items():
             f.write(f"## {role}\n")

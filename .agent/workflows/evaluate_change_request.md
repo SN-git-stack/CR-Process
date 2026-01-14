@@ -15,8 +15,9 @@ This workflow describes how to use the Dishware V1 Agent System to evaluate a ne
    - Command: `python evaluate.py <path_to_cr_file>`
 
 3. **Read the Report**
-   - The script will generate a `<filename>_REPORT.md`.
-   - Read this file using `view_file`.
+   - The script will generate a `<filename>_REPORT.md` in the same directory.
+   - **Check the Executive Summary**: The top section contains the Director-level "Go/No-Go" verdict and top risks.
+   - Read the rest for detailed Agent feedback.
 
 4. **Summarize for User**
    - Present the key findings (Approved/Rejected, Risks, Effort) to the user.
